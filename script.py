@@ -16,7 +16,9 @@ Expected CSV columns (case-sensitive):
 
 import argparse
 import csv
+import html
 import json
+import re
 import sys
 import time
 import requests
@@ -24,13 +26,13 @@ from tqdm import tqdm
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION  –  edit these values before running
-# ─────────────────────────────────────────────────────────────────────────────
-CREDENTIAL_TOKEN   = "credential_live_cs_f09b552d-3791-4b13-9cbb-e25efcda78d0"
-ORGANIZATION_ID    = "organization_0mzkcnx1z1sky"
-ORGANIZATION_STATUS = "TRANSACTING"
+# # ─────────────────────────────────────────────────────────────────────────────
+# CREDENTIAL_TOKEN   = 
+# ORGANIZATION_ID    = 
+# ORGANIZATION_STATUS = 
 
-# Paste your full Cookie header value here (copy from browser DevTools → Network)
-COOKIE = "__client_uat=1773550430; __client_uat_IVzf_GCa=1773550430; zonos-user-token=credential_live_cs_f09b552d-3791-4b13-9cbb-e25efcda78d0; __refresh_IVzf_GCa=WoaQ5dUJxhew2Xn9nEmF; clerk_active_context=sess_3Ay2L1v9ujytrAlOJH3to7rLNbo:; _delighted_web={%223HcEQwMDb6ervPGe%22:{%22_delighted_fst%22:{%22t%22:%221773550440744%22}}}; __stripe_mid=c16fbe60-3be4-4aaa-9514-22d8492d8579d4541b; __stripe_sid=fbe53940-24cc-487f-af7c-3ce25f66df5d63f1a0; _ga=GA1.1.1160230274.1773550718; _gcl_au=1.1.925715247.1773550718; 5a77b402a4922b50_cfid=1db0cca04921888d3215978e5c1a096e781d5d7f962c5217acb726d45dd292a489671ed4c12b340922704b6d6c0ed35ca35e4bf4fc29a3c7d210ceb80851bf32; fs_uid=^#NQFME^#5c164451-fce9-45b8-a477-cbc39f7abc73:44b65f5e-9abb-4f0b-bfe6-9b55f2b7c0d1:1773550353188::4^#4afe4830^#/1792673150; _ga_NW4WV1RPSM=GS2.1.s1773550717^$o1^$g1^$t1773553661^$j57^$l0^$h0; fs_lua=1.1773554095193; __session=eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18yZnNkdEhyYmF6emYzQW5WSHA0ZGlqNkNJNzkiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwczovL2Rhc2hib2FyZC56b25vcy5jb20iLCJlbWFpbCI6InJhZmlrc2hhaWlraDI1QGdtYWlsLmNvbSIsImV4cCI6MTc3MzU1NDQxMSwiZnZhIjpbNjUsLTFdLCJpYXQiOjE3NzM1NTQzNTEsImlzcyI6Imh0dHBzOi8vY2xlcmsuem9ub3MuY29tIiwianRpIjoiODY3ZTZlYzZhMDk4OGMzZWIyOTkiLCJuYmYiOjE3NzM1NTQzNDEsInBkYXRhIjp7Inpyb2xlcyI6WyJEYXNoYm9hcmQgTGl0ZSIsIkFkbWluIl19LCJzaWQiOiJzZXNzXzNBeTJMMXY5dWp5dHJBbE9KSDN0bzdyTE5ibyIsInN0cyI6ImFjdGl2ZSIsInN1YiI6InVzZXJfMzVJWjVJdzU1cTR6emVkYTJ0c3FId3N0bFRWIiwiem9pZCI6bnVsbCwienJvbGVzIjpbIkRhc2hib2FyZCBMaXRlIiwiQWRtaW4iXSwienVpZCI6InVzZXJfZGI0MTNmNTItODNjZS00NTgyLTlhYTEtOTBmZmRmYzY4YTdkIn0.OzP2bEewUxMtpWmwa-x64Rmehpf8grxsK2EznrUnqHgD5R-S-RHJeVb6ugbsr4ryCZ7T7FhHHt3QGDL3cWH_D5r2wdwvUSwTfF7FYL3HHHkoV1r-V9T5wfHTAu0nP6z3g-PfdyoAK78KwUcRS5pvNnZZxj6SesPvNok9yHztOthZ3qsdTVkeD9wWQT3ky4bpxi3JTFW9xPkD9YEpym6Gyperh5WW4jkA7JRSEeDLmMC0s6bL5pHH0GdN9t4wvK5QM9JL_ZnNFJ8H52oaIw-oH4uPqp0TOuBa6FTItpkhJkBIuIGspFwciOwLMN-9EyIUYTVfj4pUqaDC2cfF10vcuQ; __session_IVzf_GCa=eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18yZnNkdEhyYmF6emYzQW5WSHA0ZGlqNkNJNzkiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwczovL2Rhc2hib2FyZC56b25vcy5jb20iLCJlbWFpbCI6InJhZmlrc2hhaWlraDI1QGdtYWlsLmNvbSIsImV4cCI6MTc3MzU1NDQxMSwiZnZhIjpbNjUsLTFdLCJpYXQiOjE3NzM1NTQzNTEsImlzcyI6Imh0dHBzOi8vY2xlcmsuem9ub3MuY29tIiwianRpIjoiODY3ZTZlYzZhMDk4OGMzZWIyOTkiLCJuYmYiOjE3NzM1NTQzNDEsInBkYXRhIjp7Inpyb2xlcyI6WyJEYXNoYm9hcmQgTGl0ZSIsIkFkbWluIl19LCJzaWQiOiJzZXNzXzNBeTJMMXY5dWp5dHJBbE9KSDN0bzdyTE5ibyIsInN0cyI6ImFjdGl2ZSIsInN1YiI6InVzZXJfMzVJWjVJdzU1cTR6emVkYTJ0c3FId3N0bFRWIiwiem9pZCI6bnVsbCwienJvbGVzIjpbIkRhc2hib2FyZCBMaXRlIiwiQWRtaW4iXSwienVpZCI6InVzZXJfZGI0MTNmNTItODNjZS00NTgyLTlhYTEtOTBmZmRmYzY4YTdkIn0.OzP2bEewUxMtpWmwa-x64Rmehpf8grxsK2EznrUnqHgD5R-S-RHJeVb6ugbsr4ryCZ7T7FhHHt3QGDL3cWH_D5r2wdwvUSwTfF7FYL3HHHkoV1r-V9T5wfHTAu0nP6z3g-PfdyoAK78KwUcRS5pvNnZZxj6SesPvNok9yHztOthZ3qsdTVkeD9wWQT3ky4bpxi3JTFW9xPkD9YEpym6Gyperh5WW4jkA7JRSEeDLmMC0s6bL5pHH0GdN9t4wvK5QM9JL_ZnNFJ8H52oaIw-oH4uPqp0TOuBa6FTItpkhJkBIuIGspFwciOwLMN-9EyIUYTVfj4pUqaDC2cfF10vcuQ"
+# # Paste your full Cookie header value here (copy from browser DevTools → Network)
+# COOKIE = 
 
 # Seconds to wait between requests (be polite to the API)
 REQUEST_DELAY = 0.3
@@ -43,61 +45,61 @@ API_URL = "https://dashboard.zonos.com/api/graphql/internal/classificationsCalcu
 # ─────────────────────────────────────────────────────────────────────────────
 
 GRAPHQL_QUERY = """
-mutation classificationsCalculate($level: ClassificationLevel!, $inputs: [ClassificationCalculateInput!]!) {
-  classificationsCalculate(input: $inputs, level: $level) {
-    ...ClassificationResultFieldsWithAlternates
-  }
-}
+    mutation classificationsCalculate($level: ClassificationLevel!, $inputs: [ClassificationCalculateInput!]!) {
+    classificationsCalculate(input: $inputs, level: $level) {
+        ...ClassificationResultFieldsWithAlternates
+    }
+    }
 
-fragment ClassificationResultFieldsWithAlternates on Classification {
-  ...ClassificationResultFieldsBase
-  configuration {
-    hsCodeProvidedTreatment
-  }
-  alternates {
-    ...ClassificationAlternateFields
-  }
-}
+    fragment ClassificationResultFieldsWithAlternates on Classification {
+    ...ClassificationResultFieldsBase
+    configuration {
+        hsCodeProvidedTreatment
+    }
+    alternates {
+        ...ClassificationAlternateFields
+    }
+    }
 
-fragment ClassificationResultFieldsBase on Classification {
-  id
-  confidenceScore
-  customsDescription
-  hsCode {
-    code
-    description {
-      friendly
-      full
-      fullTruncated
+    fragment ClassificationResultFieldsBase on Classification {
+    id
+    confidenceScore
+    customsDescription
+    hsCode {
+        code
+        description {
+        friendly
+        full
+        fullTruncated
+        }
+        fragments {
+        code
+        description
+        type
+        }
     }
-    fragments {
-      code
-      description
-      type
+    hsCodeProvidedValidation {
+        code
+        result
+        type
     }
-  }
-  hsCodeProvidedValidation {
-    code
-    result
-    type
-  }
-}
+    }
 
-fragment ClassificationAlternateFields on ClassificationAlternate {
-  subheadingAlternate {
-    code
-    description {
-      friendly
-      full
-      fullTruncated
+    fragment ClassificationAlternateFields on ClassificationAlternate {
+    subheadingAlternate {
+        code
+        description {
+        friendly
+        full
+        fullTruncated
+        }
+        fragments {
+        code
+        description
+        type
+        }
     }
-    fragments {
-      code
-      description
-      type
     }
-  }
-}
 """
 
 HEADERS = {
@@ -109,13 +111,34 @@ HEADERS = {
     "referer": "https://dashboard.zonos.com/products/classify/create",
     "x-organization-id": ORGANIZATION_ID,
     "x-organization-status": ORGANIZATION_STATUS,
-    "user-agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/146.0.0.0 Safari/537.36"
-    ),
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
     "Cookie": COOKIE,
 }
+
+
+# curl ^"https://dashboard.zonos.com/api/graphql/internal/classificationsCalculate^" ^
+#   -H ^"accept: */*^" ^
+#   -H ^"accept-language: en-US,en;q=0.9,hi;q=0.8,es;q=0.7,fr;q=0.6,gu;q=0.5^" ^
+#   -H ^"baggage: sentry-environment=vercel-production,sentry-release=faebf1d32f0eda4a7a92eb5e4996d5382befcda8,sentry-public_key=d01fba9379314aed920d125fb4d4851f,sentry-trace_id=61edb738520546aeb75227ccaa8afa45,sentry-org_id=446983,sentry-transaction=^%^2Fproducts^%^2Fclassify^%^2Fcreate,sentry-sampled=true,sentry-sample_rand=0.2210668940117908,sentry-sample_rate=0.25^" ^
+#   -H ^"content-type: application/json^" ^
+#   -b ^"__stripe_mid=c16fbe60-3be4-4aaa-9514-22d8492d8579d4541b; _ga=GA1.1.1160230274.1773550718; _gcl_au=1.1.925715247.1773550718; 5a77b402a4922b50_cfid=1db0cca04921888d3215978e5c1a096e781d5d7f962c5217acb726d45dd292a489671ed4c12b340922704b6d6c0ed35ca35e4bf4fc29a3c7d210ceb80851bf32; __client_uat=1775833946; __client_uat_IVzf_GCa=1775833946; __refresh_IVzf_GCa=t1mhPM3PX78cs5xXCnre; _delighted_web=^{^%^223HcEQwMDb6ervPGe^%^22:^{^%^22_delighted_fst^%^22:^{^%^22t^%^22:^%^221773550440744^%^22^}^%^2C^%^22_delighted_lst^%^22:^{^%^22t^%^22:^%^221773844584000^%^22^%^2C^%^22m^%^22:^{^%^22token^%^22:^%^222coer4sSvFu2wZkhlluQgjUo^%^22^}^}^}^}; _ga_NW4WV1RPSM=GS2.1.s1776183372^$o7^$g0^$t1776183372^$j60^$l0^$h0; zonos-user-token=credential_live_cs_976b1334-d293-4bdf-953d-25bd3707c87b; clerk_active_context=sess_3CAgmHM8mRuNnim1OS9pXhDlpom:; fs_uid=^#NQFME^#5c164451-fce9-45b8-a477-cbc39f7abc73:d2d8a97a-7633-44c6-a103-e1b3181c4cb0:1776183373397::2^#4afe4830^#^#/1792673184; __stripe_sid=aae47c43-c82c-499a-b676-422d9c54f559ce9b9d; fs_lua=1.1776183477542; __session=eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18yZnNkdEhyYmF6emYzQW5WSHA0ZGlqNkNJNzkiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwczovL2Rhc2hib2FyZC56b25vcy5jb20iLCJlbWFpbCI6InJhZmlrc2hhaWlraDI1QGdtYWlsLmNvbSIsImV4cCI6MTc3NjE4NDc1NCwiZnZhIjpbNTg0NSwtMV0sImlhdCI6MTc3NjE4NDY5NCwiaXNzIjoiaHR0cHM6Ly9jbGVyay56b25vcy5jb20iLCJqdGkiOiIwMGY4Y2I0YTY3YmQ0MWE5NDc1NCIsIm5iZiI6MTc3NjE4NDY4NCwicGRhdGEiOnsienJvbGVzIjpbIkRhc2hib2FyZCBMaXRlIiwiQWRtaW4iXX0sInNpZCI6InNlc3NfM0NBZ21ITThtUnVObmltMU9TOXBYaERscG9tIiwic3RzIjoiYWN0aXZlIiwic3ViIjoidXNlcl8zNUlaNUl3NTVxNHp6ZWRhMnRzcUh3c3RsVFYiLCJ6b2lkIjpudWxsLCJ6cm9sZXMiOlsiRGFzaGJvYXJkIExpdGUiLCJBZG1pbiJdLCJ6dWlkIjoidXNlcl9kYjQxM2Y1Mi04M2NlLTQ1ODItOWFhMS05MGZmZGZjNjhhN2QifQ.NgENrlDRgjkf4SDFdMLI-RuSmuGRLPrAraXKmYCrNoVW70lktNkp3xS_j4xlOOgsjneMQFgg9aiLTEp0AQWoh1y6YiSyHcr0nimbr-X2rUni6Q54BCktTt4UStrIcmEKN63pWXFUt8HWvLziuKJzGHNdLOanlunZtaTYd92-8f7lUY2sB7wjcHEYAGTnyTv07q-hhhQcRQdbAoVu29yWRIIpp9_9ng3xnzWa5lv5uZ7jIf6m8WmNcqUbKgjSU-FDrn9u3hNo0LAcaZ0bQJT5HjV1m4hoKquVtWdoakHLTIZ2XxLRDmWlydBfYTyGQbUSxHTRcOrB0f2r-O1YKJgxGA; __session_IVzf_GCa=eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18yZnNkdEhyYmF6emYzQW5WSHA0ZGlqNkNJNzkiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwczovL2Rhc2hib2FyZC56b25vcy5jb20iLCJlbWFpbCI6InJhZmlrc2hhaWlraDI1QGdtYWlsLmNvbSIsImV4cCI6MTc3NjE4NDc1NCwiZnZhIjpbNTg0NSwtMV0sImlhdCI6MTc3NjE4NDY5NCwiaXNzIjoiaHR0cHM6Ly9jbGVyay56b25vcy5jb20iLCJqdGkiOiIwMGY4Y2I0YTY3YmQ0MWE5NDc1NCIsIm5iZiI6MTc3NjE4NDY4NCwicGRhdGEiOnsienJvbGVzIjpbIkRhc2hib2FyZCBMaXRlIiwiQWRtaW4iXX0sInNpZCI6InNlc3NfM0NBZ21ITThtUnVObmltMU9TOXBYaERscG9tIiwic3RzIjoiYWN0aXZlIiwic3ViIjoidXNlcl8zNUlaNUl3NTVxNHp6ZWRhMnRzcUh3c3RsVFYiLCJ6b2lkIjpudWxsLCJ6cm9sZXMiOlsiRGFzaGJvYXJkIExpdGUiLCJBZG1pbiJdLCJ6dWlkIjoidXNlcl9kYjQxM2Y1Mi04M2NlLTQ1ODItOWFhMS05MGZmZGZjNjhhN2QifQ.NgENrlDRgjkf4SDFdMLI-RuSmuGRLPrAraXKmYCrNoVW70lktNkp3xS_j4xlOOgsjneMQFgg9aiLTEp0AQWoh1y6YiSyHcr0nimbr-X2rUni6Q54BCktTt4UStrIcmEKN63pWXFUt8HWvLziuKJzGHNdLOanlunZtaTYd92-8f7lUY2sB7wjcHEYAGTnyTv07q-hhhQcRQdbAoVu29yWRIIpp9_9ng3xnzWa5lv5uZ7jIf6m8WmNcqUbKgjSU-FDrn9u3hNo0LAcaZ0bQJT5HjV1m4hoKquVtWdoakHLTIZ2XxLRDmWlydBfYTyGQbUSxHTRcOrB0f2r-O1YKJgxGA^" ^
+#   -H ^"credentialtoken: credential_live_cs_976b1334-d293-4bdf-953d-25bd3707c87b^" ^
+#   -H ^"origin: https://dashboard.zonos.com^" ^
+#   -H ^"priority: u=1, i^" ^
+#   -H ^"referer: https://dashboard.zonos.com/products/classify/create^" ^
+#   -H ^"sec-ch-ua: ^\^"Chromium^\^";v=^\^"146^\^", ^\^"Not-A.Brand^\^";v=^\^"24^\^", ^\^"Google Chrome^\^";v=^\^"146^\^"^" ^
+#   -H ^"sec-ch-ua-mobile: ?0^" ^
+#   -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+#   -H ^"sec-fetch-dest: empty^" ^
+#   -H ^"sec-fetch-mode: cors^" ^
+#   -H ^"sec-fetch-site: same-origin^" ^
+#   -H ^"sentry-trace: 61edb738520546aeb75227ccaa8afa45-88f50ad28df03133-1^" ^
+#   -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36^" ^
+#   -H ^"x-organization-id: organization_0mzkcnx1z1sky^" ^
+#   -H ^"x-organization-status: TRANSACTING^" ^
+#   --data-raw ^"^{^\^"query^\^":^\^"mutation classificationsCalculate(^$level: ClassificationLevel^!, ^$inputs: ^[ClassificationCalculateInput^!^]^!) ^{^\^\n  classificationsCalculate(input: ^$inputs, level: ^$level) ^{^\^\n    ...ClassificationResultFieldsWithAlternates^\^\n  ^}^\^\n^}^\^\n^\^\nfragment ClassificationResultFieldsWithAlternates on Classification ^{^\^\n  ...ClassificationResultFieldsBase^\^\n  configuration ^{^\^\n    hsCodeProvidedTreatment^\^\n  ^}^\^\n  alternates ^{^\^\n    ...ClassificationAlternateFields^\^\n  ^}^\^\n^}^\^\n^\^\nfragment ClassificationResultFieldsBase on Classification ^{^\^\n  id^\^\n  confidenceScore^\^\n  customsDescription^\^\n  hsCode ^{^\^\n    code^\^\n    description ^{^\^\n      friendly^\^\n      full^\^\n      fullTruncated^\^\n    ^}^\^\n    fragments ^{^\^\n      code^\^\n      description^\^\n      type^\^\n    ^}^\^\n  ^}^\^\n  hsCodeProvidedValidation ^{^\^\n    code^\^\n    result^\^\n    type^\^\n  ^}^\^\n^}^\^\n^\^\nfragment ClassificationAlternateFields on ClassificationAlternate ^{^\^\n  subheadingAlternate ^{^\^\n    code^\^\n    description ^{^\^\n      friendly^\^\n      full^\^\n      fullTruncated^\^\n    ^}^\^\n    fragments ^{^\^\n      code^\^\n      description^\^\n      type^\^\n    ^}^\^\n  ^}^\^\n^}^\^",^\^"variables^\^":^{^\^"inputs^\^":^{^\^"categories^\^":^[^],^\^"configuration^\^":^{^\^"hsCodeProvided^\^":^\^"^\^",^\^"hsCodeProvidedTreatment^\^":^\^"IGNORE^\^",^\^"shipToCountries^\^":^[^\^"US^\^"^]^},^\^"description^\^":^\^"^\^",^\^"imageUrl^\^":^\^"^\^",^\^"material^\^":^\^"^\^",^\^"name^\^":^\^"test^\^",^\^"productUrl^\^":null^},^\^"level^\^":^\^"BASE^\^"^},^\^"operationName^\^":^\^"classificationsCalculate^\^"^}^"
+
+
 
 # New columns that will be appended to every output row
 NEW_COLUMNS = [
@@ -136,20 +159,29 @@ NEW_COLUMNS = [
 ]
 
 
+def html_to_text(value: str) -> str:
+    """Convert HTML content into plain, normalized text."""
+    if not value:
+        return ""
+    text = re.sub(r"<[^>]+>", " ", value)
+    text = html.unescape(text)
+    return " ".join(text.split())
+
+
 def build_payload(row: dict) -> dict:
     """Build the GraphQL request payload from a CSV row."""
     sku        = row.get("SKU", "").strip()
     handle     = row.get("Handle", "").strip()
     title      = row.get("Title", "").strip()
     coo        = row.get("COO", "").strip()
-    category  = row.get("category", "").strip()
-    image  = row.get("image", "").strip()
-    vendor  = row.get("vendor", "").strip()
-    description  = row.get("description", "").strip()
-    type  = row.get("type", "").strip()
+    category  = row.get("Category", "").strip()
+    image  = row.get("Image", "").strip()
+    vendor  = row.get("Vendor", "").strip()
+    description  = html_to_text(row.get("Description", ""))
+    type  = row.get("Type", "").strip()
     barcode  = row.get("Barcode", "").strip()
-    weight  = row.get("weight", "").strip()
-    weight_unit  = row.get("weight unit", "").strip()
+    weight  = row.get("Weight", "").strip()
+    weight_unit  = row.get("Weight Unit", "").strip()
 
 
 
@@ -197,6 +229,7 @@ def call_api(payload: dict) -> tuple[int, dict | None]:
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             resp = requests.post(API_URL, headers=HEADERS, json=payload, timeout=30)
+            # print(resp.json())
             if resp.status_code == 200:
                 return 200, resp.json()
             elif resp.status_code in (429, 500, 502, 503, 504) and attempt < MAX_RETRIES:
